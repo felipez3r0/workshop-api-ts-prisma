@@ -256,3 +256,166 @@ Para testar o servidor, execute o comando:
 ```bash
 npm run dev
 ```
+
+### Etapa 5 - Adicionando o update e o delete
+
+Vamos adicionar as funcionalidades de atualizar e deletar um usuário. Vamos começar criando as funções no repositório. Adicione as seguintes funções no arquivo `user.repository.ts`:
+
+```typescript
+export const updateUser = async (id: number, data: { name: string, email: string, password: string }) => {
+  return User.update({ where: { id }, data }) // Atualiza um usuário
+}
+
+export const deleteUser = async (id: number) => {
+  return User.delete({ where: { id } }) // Deleta um usuário
+}
+
+export const findUserById = async (id: number) => {
+  return User.findFirst({ where: { id } }) // Busca um usuário pelo id
+}
+```
+
+Agora vamos adicionar as funções no serviço. Adicione as seguintes funções no arquivo `user.service.ts`:
+
+```typescript
+export const updateUserService = async (id: number, data: { name: string, email: string, password: string }) => {
+  const user = await findUserById(id) // Busca um usuário pelo id
+
+  if (!user) {
+    throw new Error('Usuário não encontrado') // Se o usuário não existir, lança um erro
+  }
+
+  return updateUser(id, data) // Atualiza um usuário
+}
+
+export const deleteUserService = async (id: number) => {
+  const user = await findUserById(id) // Busca um usuário pelo id
+
+  if (!user) {
+    throw new Error('Usuário não encontrado') // Se o usuário não existir, lança um erro
+  }
+
+  return deleteUser(id) // Deleta um usuário
+}
+```
+
+Agora vamos adicionar as funções no controlador. Adicione as seguintes funções no arquivo `user.controller.ts`:
+
+```typescript
+import { updateUser, deleteUser } from '../services/user.service' // Importa os métodos do serviço
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const user = await updateUserService(Number(req.params.id), req.body) // Atualiza um usuário
+    return res.status(200).json(user) // Retorna o usuário atualizado
+  } catch (error) {
+    return res.status(400).json({ message: error }) // Retorna um erro
+  }
+}
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    await deleteUserService(Number(req.params.id)) // Deleta um usuário
+    return res.status(204).send() // Retorna uma resposta vazia
+  } catch (error) {
+    return res.status(400).json({ message: error }) // Retorna um erro
+  }
+}
+```
+
+Agora vamos adicionar as rotas de atualizar e deletar um usuário. Adicione as seguintes rotas no arquivo `user.routes.ts`:
+
+```typescript
+router.patch('/:id', updateUser) // Define a rota para atualizar um usuário
+router.delete('/:id', deleteUser) // Define a rota para deletar um usuário
+```
+
+### Etapa 6 - Validando os dados com class-validator
+
+Vamos adicionar a validação dos dados utilizando a biblioteca class-validator. Vamos começar instalando a biblioteca.
+
+```bash
+npm install class-validator class-transformer
+```
+
+Para usar os decoradores de validação, precisamos habilitar a opção `experimentalDecorators` e a opção `emitDecoratorMetadata` no arquivo `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+Agora vamos criar um arquivo `user.dto.ts` na pasta `dtos` com o seguinte conteúdo:
+
+```typescript
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional } from 'class-validator' // Importa os decoradores de validação
+
+export class CreateUserDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string
+
+  @IsEmail()
+  email!: string
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6)
+  password!: string
+}
+
+export class UpdateUserDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string
+
+  @IsOptional()
+  @IsEmail()
+  email?: string
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6)
+  password?: string
+}
+```
+
+Vamos construir um middleware para validar os dados. O Middleware é uma função que recebe a requisição, a resposta e o próximo middleware e pode realizar alguma ação antes de seguir. Crie um arquivo `validate.middleware.ts` na pasta `middlewares` com o seguinte conteúdo:
+
+```typescript
+import { plainToInstance } from 'class-transformer' // Importa a função plainToInstance
+import { Request, Response, NextFunction } from 'express' // Importa os tipos do Express
+import { validate as classValidatorValidate } from 'class-validator' // Importa a função validate do class-validator
+
+export const validate = (dto: any) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const data = plainToInstance(dto, req.body) // Converte os dados para a classe
+    const errors = await classValidatorValidate(data) // Valida os dados
+
+    if (errors.length > 0) {
+      return res.status(400).json({ message: 'Dados inválidos', errors }) // Retorna um erro
+    }
+
+    req.body = data // Define os dados validados
+    next() // Chama o próximo middleware
+  }
+}
+```
+
+Agora vamos adicionar a validação nas rotas. Adicione a validação nas rotas de criar e atualizar um usuário no arquivo `user.routes.ts`:
+
+```typescript
+import { validate } from '../middlewares/validate.middleware' // Importa o middleware de validação
+import { CreateUserDto } from '../dtos/user.dto' // Importa o DTO de usuário
+
+router.post('/', validate(CreateUserDto), createUser) // Define a rota para criar um usuário
+router.patch('/:id', validate(CreateUserDto), updateUser) // Define a rota para atualizar um usuário
+```
+
+Dessa forma estamos validando os dados antes de chamar o controlador. Se os dados não estiverem de acordo com o DTO, retornamos um erro.
