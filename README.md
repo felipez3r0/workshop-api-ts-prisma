@@ -419,3 +419,435 @@ router.patch('/:id', validate(CreateUserDto), updateUser) // Define a rota para 
 ```
 
 Dessa forma estamos validando os dados antes de chamar o controlador. Se os dados não estiverem de acordo com o DTO, retornamos um erro.
+
+### Etapa 7 - Adicionando as tarefas
+
+Vamos adicionar a entidade de tarefa. Primeiro vamos ajustar o schema do Prisma. Adicione o seguinte conteúdo no arquivo `schema.prisma`:
+
+```prisma
+model Task {
+  id        Int     @id @default(autoincrement())
+  title     String
+  completed Boolean @default(false)
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id]) // Define a relação com o usuário, o campo userId é a chave estrangeira para o id do usuário
+}
+```
+
+Precisamos ajustar o model User para adicionar a relação com a tarefa. Vamos ajustar no schema do Prisma. Adicione o seguinte conteúdo no arquivo `schema.prisma`:
+
+```prisma
+model User {
+  id    Int     @id @default(autoincrement())
+  name  String
+  email String  @unique
+  password String
+  tasks Task[] // Define a relação com as tarefas, um usuário pode ter várias tarefas
+}
+```
+
+Depois dos ajustes no schema, execute o comando:
+
+```bash
+npx prisma db push
+```
+
+Agora vamos criar um arquivo `task.entity.ts` na pasta `entities` com o seguinte conteúdo:
+
+```typescript
+import { PrismaClient } from '@prisma/client' // Importa o PrismaClient
+
+const prisma = new PrismaClient() // Cria uma instância do PrismaClient
+
+export default prisma.task // Exporta o modelo de tarefa
+```
+
+Agora vamos começar criando os DTOs para a tarefa. Crie um arquivo `task.dto.ts` na pasta `dtos` com o seguinte conteúdo:
+
+```typescript
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator'
+
+export class CreateTaskDto {
+  @IsString()
+  @IsNotEmpty()
+  title!: string
+
+  @IsOptional()
+  @IsBoolean()
+  completed?: boolean
+
+  @IsInt()
+  @IsNotEmpty()
+  userId!: number
+}
+
+export class UpdateTaskDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  title?: string
+
+  @IsOptional()
+  @IsBoolean()
+  completed?: boolean
+}
+```
+
+Agora vamos criar o repositório de tarefa. Crie um arquivo `task.repository.ts` na pasta `repositories` com o seguinte conteúdo:
+
+```typescript
+import { CreateTaskDto, UpdateTaskDto } from '../dtos/task.dto'
+import Task from '../entities/task.entity'
+
+export const createTask = async (data: CreateTaskDto) => {
+  return Task.create({ data })
+}
+
+export const findAllTasks = async () => {
+  return Task.findMany()
+}
+
+export const findTaskById = async (id: number) => {
+  return Task.findFirst({ where: { id } })
+}
+
+export const updateTask = async (id: number, data: UpdateTaskDto) => {
+  return Task.update({ where: { id }, data })
+}
+
+export const deleteTask = async (id: number) => {
+  return Task.delete({ where: { id } })
+}
+```
+
+Agora vamos criar o serviço de tarefa. Crie um arquivo `task.service.ts` na pasta `services` com o seguinte conteúdo:
+
+```typescript
+import { CreateTaskDto, UpdateTaskDto } from '../dtos/task.dto'
+import { createTask, findAllTasks, findTaskById, updateTask, deleteTask } from '../repositories/task.repository'
+
+export const createTaskService = async (data: CreateTaskDto) => {
+  return createTask(data)
+}
+
+export const findAllTasksService = async () => {
+  return findAllTasks()
+}
+
+export const findTaskByIdService = async (id: number) => {
+  return findTaskById(id)
+}
+
+export const updateTaskService = async (id: number, data: UpdateTaskDto) => {
+  return updateTask(id, data)
+}
+
+export const deleteTaskService = async (id: number) => {
+  return deleteTask(id)
+}
+```
+
+Agora vamos criar o controlador de tarefa. Crie um arquivo `task.controller.ts` na pasta `controllers` com o seguinte conteúdo:
+
+```typescript
+import { Request, Response } from 'express'
+import { createTaskService, findAllTasksService, findTaskByIdService, updateTaskService, deleteTaskService } from '../services/task.service'
+
+export const createTask = async (req: Request, res: Response) => {
+  try {
+    const task = await createTaskService(req.body)
+    return res.status(201).json(task)
+  } catch (error) {
+    return res.status(400).json({ message: error })
+  }
+}
+
+export const findAllTasks = async (req: Request, res: Response) => {
+  const tasks = await findAllTasksService()
+  return res.status(200).json(tasks)
+}
+
+export const findTaskById = async (req: Request, res: Response) => {
+  const task = await findTaskByIdService(Number(req.params.id))
+  return res.status(200).json(task)
+}
+
+export const updateTask = async (req: Request, res: Response) => {
+  try {
+    const task = await updateTaskService(Number(req.params.id), req.body)
+    return res.status(200).json(task)
+  } catch (error) {
+    return res.status(400).json({ message: error })
+  }
+}
+
+export const deleteTask = async (req: Request, res: Response) => {
+  try {
+    await deleteTaskService(Number(req.params.id))
+    return res.status(204).send()
+  } catch (error) {
+    return res.status(400).json({ message: error })
+  }
+}
+```
+
+Agora vamos criar as rotas de tarefa. Crie um arquivo `task.routes.ts` na pasta `routes` com o seguinte conteúdo:
+
+```typescript
+import { Router } from 'express' // Importa o Router do Express
+import { createTask, updateTask, deleteTask, findAllTasks } from '../controllers/task.controller' // Importa os métodos do controlador
+import { validate } from '../middlewares/validate.middleware'
+import { CreateTaskDto, UpdateTaskDto } from '../dtos/task.dto'
+
+const router = Router() // Cria uma instância do Router
+
+router.post('/', validate(CreateTaskDto), createTask) // Define a rota para criar uma tarefa
+router.get('/', findAllTasks) // Define a rota para buscar todas as tarefas
+router.patch('/:id', validate(UpdateTaskDto), updateTask) // Define a rota para atualizar uma tarefa
+router.delete('/:id', deleteTask) // Define a rota para deletar uma tarefa
+
+export default router // Exporta o router
+```
+
+Agora vamos adicionar as rotas de tarefa no arquivo `index.ts` da pasta `routes`:
+
+```typescript
+import { Router } from 'express' // Importa o Router do Express
+import userRoutes from './user.routes' // Importa as rotas de usuário
+import taskRoutes from './task.routes'
+
+const router = Router() // Cria uma instância do Router
+
+router.use('/users', userRoutes) // Define o prefixo para as rotas de usuário
+router.use('/tasks', taskRoutes) // Define o prefixo para as rotas de tarefa
+
+export default router // Exporta o router
+```
+
+### Etapa 8 - Criando uma rota para listar usuário pelo ID e suas tarefas
+
+Vamos criar uma rota para buscar um usuário pelo ID e suas tarefas. Vamos começar criando a função no repositório. Adicione a seguinte função no arquivo `user.repository.ts`:
+
+```typescript
+export const findUserByIdWithTasks = async (id: number) => {
+  return User.findFirst({ where: { id }, include: { tasks: true } }) // O include: { tasks: true } faz com que as tarefas sejam incluídas na busca
+}
+```
+
+Agora vamos criar a função no serviço. Adicione a seguinte função no arquivo `user.service.ts`:
+
+```typescript
+export const findUserByIdWithTasksService = async (id: number) => {
+  return findUserByIdWithTasks(id)
+}
+```
+
+Agora vamos criar a função no controlador. Adicione a seguinte função no arquivo `user.controller.ts`:
+
+```typescript
+export const findUserByIdWithTasks = async (req: Request, res: Response) => {
+  const id = Number(req.params.id)
+  
+  if (isNaN(id)) {
+    return res.status(400).json({ message: 'ID inválido' })
+  }
+
+  const user = await findUserByIdWithTasksService(id)
+  return res.status(200).json(user)
+}
+```
+
+Para finalizar vamos adicionar a rota no arquivo `user.routes.ts`:
+
+```typescript
+router.get('/:id/tasks', findUserByIdWithTasks) // Define a rota para buscar um usuário pelo ID e suas tarefas
+```
+
+### Etapa 9 - Adicionando autenticação com JWT
+
+Vamos adicionar a autenticação com JWT (JSON Web Token) para proteger as rotas de usuário e tarefa. Vamos começar instalando a biblioteca `jose`.
+
+```bash
+npm install jose
+```
+
+Vamos utilizar a bcrypt para criptografar a senha do usuário. Vamos instalar a biblioteca `bcrypt`.
+
+```bash
+npm install bcrypt
+npm install -D @types/bcrypt
+```
+
+Primeiro vamos ajustar nosso serviço de cadastro de usuário para criptografar a senha. Adicione a seguinte função no arquivo `user.service.ts`:
+
+```typescript
+import bcrypt from 'bcrypt'
+
+export const createUserService = async (data: CreateUserDto) => {
+  const user = await findUserByEmail(data.email) // Busca um usuário pelo e-mail
+
+  if (user) {
+    throw new Error('Usuário já existe') // Se o usuário já existir, lança um erro
+  }
+
+  const password = await bcrypt.hash(data.password, 10) // Criptografa a senha e escolhe o número de rounds, quanto maior o número, mais seguro é o hash (mas também mais lento)
+
+  return createUser({ ...data, password }) // Aqui devemos passar a senha criptografada, estamos usando os 3 pontos para copiar todas as propriedades de data e adicionar a senha criptografada (é uma forma de fazer um merge de objetos, isso leva o nome de spread operator)
+}
+```
+
+Vamos ajustar o repositório do user para não retornar a hash da senha. Para isso vamos ajustar o arquivo `user.repository.ts`:
+
+```typescript
+export const createUser = async (data: CreateUserDto) => {
+  const newUser = await User.create({ data }) // Cria um novo usuário
+  return { ...newUser, password: undefined } // Remove a senha do usuário antes de retornar
+}
+```
+
+A senha agora vai ser salva criptografada no banco de dados. No nosso serviço do usuário vamos adicionar a função de autenticação. Adicione a seguinte função no arquivo `user.service.ts`:
+
+```typescript
+import * as jose from 'jose'
+
+export const authenticateUserService = async (email: string, password: string) => {
+  const user = await findUserByEmail(email) // Busca um usuário pelo e-mail
+
+  if (!user) {
+    throw new Error('Usuário não encontrado') // Se o usuário não existir, lança um erro
+  }
+
+  const isValid = await bcrypt.compare(password, user.password) // Compara a senha criptografada com a senha informada
+
+  if (!isValid) {
+    throw new Error('Senha inválida') // Se a senha for inválida, lança um erro
+  }
+
+  const payload = { id: user.id, email: user.email } // Cria um payload com o id e o e-mail do usuário
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET) // Pega a chave secreta do JWT do arquivo .env - essa chave é usada para assinar o token e não deve ser exposta
+  const alg = 'HS256' // Define o algoritmo de criptografia
+
+  const token = await new jose.SignJWT(payload)
+    .setProtectedHeader({ alg })
+    .setIssuedAt() // Define a data de emissão do token
+    .setIssuer('http://localhost:3000') // Define o emissor do token
+    .setSubject('users') // Define o assunto do token
+    .setExpirationTime('1h') // Define o tempo de expiração do token
+    .sign(secret) // Assina o token com a chave secreta
+
+
+  return token // Retorna o token
+}
+```
+
+Com o login criado vamos adicionar uma rota no nosso controlador de usuário. Adicione a seguinte função no arquivo `user.controller.ts`:
+
+```typescript
+import { authenticateUserService } from '../services/user.service'
+
+export const authenticateUser = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body
+    if (!email || !password) {
+      return res.status(400).json({ message: 'E-mail e senha são obrigatórios' })
+    }
+    const token = await authenticateUserService(email, password)
+    return res.status(200).json({ token })
+  } catch (error) {
+    return res.status(400).json({ message: error })
+  }
+}
+```
+
+Uma outra alternativa seria criar essas funções em um controller de autenticação, mas para simplificar vamos manter tudo no controller de usuário.
+
+Agora vamos adicionar a rota no arquivo `user.routes.ts`:
+
+```typescript
+router.post('/authenticate', authenticateUser) // Define a rota para autenticar um usuário
+```
+
+Agora podemos criar um middleware para verificar se o token é válido. Crie um arquivo `auth.middleware.ts` na pasta `middlewares` com o seguinte conteúdo:
+
+```typescript
+import { NextFunction, Request, Response } from 'express'
+import * as jose from 'jose'
+
+// Adiciona a propriedade user ao objeto de requisição do Express - para que o TypeScript reconheça a propriedade
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: jose.JWTPayload
+  }
+}
+
+
+export const auth = async (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1] // Pega o token do cabeçalho de autorização
+
+  if (!token) {
+    return res.status(401).json({ message: 'Token não informado' }) // Se o token não for informado, retorna um erro
+  }
+
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET) // Pega a chave secreta do JWT do arquivo .env
+    const payload = await jose.jwtVerify(token, secret) // Verifica o token
+
+    if (!payload) {
+      return res.status(401).json({ message: 'Token inválido' }) // Se o token for inválido, retorna um erro
+    }
+
+    req.user = payload.payload // Adiciona o payload do token ao objeto de requisição
+    next() // Chama o próximo middleware
+  } catch (error) {
+    return res.status(401).json({ message: 'Token inválido' }) // Se o token for inválido, retorna um erro
+  }
+}
+```
+
+Vamos proteger a rota de cadastrar tarefas. Adicione o middleware no arquivo `task.routes.ts`:
+
+```typescript
+router.post('/', auth, validate(CreateTaskDto), createTask) // Define a rota para criar uma tarefa
+```
+
+No controller de tarefa vamos adicionar o usuário que criou a tarefa. Adicione a seguinte função no arquivo `task.controller.ts`:
+
+```typescript
+import * as jose from 'jose'
+
+// Adiciona a propriedade user ao objeto de requisição do Express - para que o TypeScript reconheça a propriedade
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: jose.JWTPayload
+  }
+}
+
+export const createTask = async (req: Request, res: Response) => {
+  try {
+    if(!req.user) {
+      return res.status(401).json({ message: 'Token não informado' })
+    }
+    
+    const task = await createTaskService({ ...req.body, userId: req.user.id }) // Adiciona o id do usuário que criou a tarefa, esse user é o que foi definido no middleware de autenticação
+    return res.status(201).json(task)
+  } catch (error) {
+    return res.status(400).json({ message: error })
+  }
+}
+```
+
+Vamos alterar o DTO de tarefa pois agora o userId será passado pelo middleware de autenticação. Ajuste o arquivo `task.dto.ts`:
+
+```typescript
+export class CreateTaskDto {
+  @IsString()
+  @IsNotEmpty()
+  title!: string
+
+  @IsOptional()
+  @IsBoolean()
+  completed?: boolean
+}
+```
+
+Agora nas chamadas de criação de tarefa não precisamos mais passar o userId, pois ele será passado pelo middleware de autenticação. Porém precisamos informar o token que é gerado ao autenticar o usuário. Faça a chamada de autenticação e pegue o token gerado. Depois adicione o token no cabeçalho de autorização da requisição, você vai adicionar ao Thunderclient/Postman/Insomnia o cabeçalho (Headers) `Authorization` com o valor `Bearer <token>`.
