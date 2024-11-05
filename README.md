@@ -852,7 +852,205 @@ export class CreateTaskDto {
 
 Agora nas chamadas de criação de tarefa não precisamos mais passar o userId, pois ele será passado pelo middleware de autenticação. Porém precisamos informar o token que é gerado ao autenticar o usuário. Faça a chamada de autenticação e pegue o token gerado. Depois adicione o token no cabeçalho de autorização da requisição, você vai adicionar ao Thunderclient/Postman/Insomnia o cabeçalho (Headers) `Authorization` com o valor `Bearer <token>`.
 
-### Etapa 10 - Deploy no Render
+### Etapa 10 - Documentação com Swagger
+
+Vamos instalar o swagger-ui-express para visualizar a documentação
+
+```bash
+npm i swagger-ui-express
+npm i -D @types/swagger-ui-express
+```
+
+Vamos adicionar a rota para visualizar a documentação no arquivo server.ts
+
+```typescript
+...
+import swaggerUi from 'swagger-ui-express'
+import swaggerFile from './swagger.json'
+...
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile)) // Configura o Swagger UI
+
+app.listen(PORT, () => {
+  console.log(`Server rodando em http://localhost:${PORT}`) // Inicia o servidor
+})
+...
+```
+
+Para conseguirmos utilizar o import de um json no TypeScript, precisamos adicionar a seguinte configuração no arquivo `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "resolveJsonModule": true
+  }
+}
+```
+
+Vamos criar o arquivo `src/swagger.json` com o seguinte conteúdo:
+
+```json
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "API de Tarefas",
+      "version": "1.0.0",
+      "description": "API de tarefas com autenticação JWT"
+    },
+    "servers": [
+      {
+        "url": "http://localhost:3000/api"
+      }
+    ],
+    "paths": {}
+}
+```
+
+Para testar a documentação, execute o comando:
+
+```bash
+npm run dev
+```
+
+Acesse a URL `http://localhost:3000/api-docs` para visualizar a documentação.
+
+Dentro do `swagger.json` vamos adicionar as rotas que desejamos documentar, vamos iniciar com a rota de listar todos os usuários. Adicione o seguinte conteúdo no arquivo `swagger.json`:
+
+```json
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "API de Tarefas",
+      "version": "1.0.0",
+      "description": "API de tarefas com autenticação JWT"
+    },
+    "servers": [
+      {
+        "url": "http://localhost:3000/api"
+      }
+    ],
+    "paths": {
+      "/users": {
+        "get": {
+          "summary": "Lista todos os usuários",
+          "responses": {
+            "200": {
+              "description": "Sucesso",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "User": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+}
+```
+
+Podemos documentar também a rota de adicionar um usuário. Adicione o seguinte conteúdo no arquivo `swagger.json`:
+
+```json
+{
+    "openapi": "3.0.0",
+    "info": {...},
+    "servers": [...],
+    "paths": {
+      "/users": {
+        "get": {...},
+        "post": {
+          "summary": "Adiciona um usuário",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateUserDto"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Sucesso",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Erro",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "User": {...},
+        "CreateUserDto": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+}
+```
+
+Existem algumas bibliotecas que podem ajudar a documentar a API, como o `swagger-jsdoc` e o `swagger-autogen`, essas libs costumam ser utilizadas para gerar a documentação automaticamente a partir dos comentários do código.
+
+### Etapa 11 - Deploy no Render
 
 Vamos fazer o deploy da nossa aplicação no Render. Primeiro vamos criar uma conta no Render e criar um novo Webservice. Vamos escolher a opção de deploy de um repositório do GitHub. Vamos adicionar o repositório da nossa aplicação e configurar o deploy.
 
@@ -866,14 +1064,10 @@ npm i -D @types/cors
 Vamos adicionar o middleware de CORs no nosso servidor. Adicione o seguinte conteúdo no arquivo `server.ts`:
 
 ```typescript
-import express from 'express'
-import routes from './routes'
+...
 import cors from 'cors'
-
-const app = express()
-const PORT = 3000
-
-app.use(cors()) // Habilita o CORs
+...
+app.use(cors()) // Habilita o CORs antes de definir as rotas
 ```
 
 Habilitar o CORs dessa forma permite que qualquer origem acesse a nossa API. Para restringir o acesso, podemos passar um objeto de configuração para o middleware. Existem outras opções também para configurar esses acessos como Proxy Reverso, Nginx, etc.
