@@ -851,3 +851,37 @@ export class CreateTaskDto {
 ```
 
 Agora nas chamadas de criação de tarefa não precisamos mais passar o userId, pois ele será passado pelo middleware de autenticação. Porém precisamos informar o token que é gerado ao autenticar o usuário. Faça a chamada de autenticação e pegue o token gerado. Depois adicione o token no cabeçalho de autorização da requisição, você vai adicionar ao Thunderclient/Postman/Insomnia o cabeçalho (Headers) `Authorization` com o valor `Bearer <token>`.
+
+### Etapa 10 - Deploy no Render
+
+Vamos fazer o deploy da nossa aplicação no Render. Primeiro vamos criar uma conta no Render e criar um novo Webservice. Vamos escolher a opção de deploy de um repositório do GitHub. Vamos adicionar o repositório da nossa aplicação e configurar o deploy.
+
+Na aplicação vamos ajustar dois itens, primeiro o CORs para permitir que o frontend (e outras aplicações) acessem a nossa API. Vamos instalar o pacote `cors`.
+
+```bash
+npm i cors
+npm i -D @types/cors
+```
+
+Vamos adicionar o middleware de CORs no nosso servidor. Adicione o seguinte conteúdo no arquivo `server.ts`:
+
+```typescript
+import express from 'express'
+import routes from './routes'
+import cors from 'cors'
+
+const app = express()
+const PORT = 3000
+
+app.use(cors()) // Habilita o CORs
+```
+
+Habilitar o CORs dessa forma permite que qualquer origem acesse a nossa API. Para restringir o acesso, podemos passar um objeto de configuração para o middleware. Existem outras opções também para configurar esses acessos como Proxy Reverso, Nginx, etc.
+
+Para o Deploy no Render precisamos ajustar a configuração da porta do servidor. Vamos adicionar a seguinte linha no arquivo `server.ts`:
+
+```typescript
+const PORT = process.env.PORT || 3000 // Pedimos para carrergar a porta do ambiente ou usar a porta 3000
+```
+
+Esse ajuste é necessário para que o Render consiga identificar a porta que a aplicação está rodando. O Render vai passar a porta para a aplicação através da variável de ambiente `PORT`.
