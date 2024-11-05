@@ -1,6 +1,6 @@
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator' // Importa os decoradores de validação
 
-export class CreateTaskDto {
+export class RequestCreateTaskDto {
   @IsString()
   @IsNotEmpty()
   title!: string
@@ -8,6 +8,12 @@ export class CreateTaskDto {
   @IsOptional()
   @IsBoolean()
   completed?: boolean
+}
+
+export interface CreateTaskDto {
+  title: string
+  completed?: boolean
+  userId: number
 }
 
 export class UpdateTaskDto {

@@ -839,7 +839,7 @@ export const createTask = async (req: Request, res: Response) => {
 Vamos alterar o DTO de tarefa pois agora o userId será passado pelo middleware de autenticação. Ajuste o arquivo `task.dto.ts`:
 
 ```typescript
-export class CreateTaskDto {
+export class RequestCreateTaskDto {
   @IsString()
   @IsNotEmpty()
   title!: string
@@ -848,6 +848,18 @@ export class CreateTaskDto {
   @IsBoolean()
   completed?: boolean
 }
+
+export interface CreateTaskDto {
+  title: string
+  completed?: boolean
+  userId: number
+}
+```
+
+No task.routes vamos alterar a validação para o novo DTO. Ajuste o arquivo `task.routes.ts`:
+
+```typescript
+router.post('/', auth, validate(RequestCreateTaskDto), createTask) // Define a rota para criar uma tarefa
 ```
 
 Agora nas chamadas de criação de tarefa não precisamos mais passar o userId, pois ele será passado pelo middleware de autenticação. Porém precisamos informar o token que é gerado ao autenticar o usuário. Faça a chamada de autenticação e pegue o token gerado. Depois adicione o token no cabeçalho de autorização da requisição, você vai adicionar ao Thunderclient/Postman/Insomnia o cabeçalho (Headers) `Authorization` com o valor `Bearer <token>`.
@@ -1079,3 +1091,29 @@ const PORT = process.env.PORT || 3000 // Pedimos para carrergar a porta do ambie
 ```
 
 Esse ajuste é necessário para que o Render consiga identificar a porta que a aplicação está rodando. O Render vai passar a porta para a aplicação através da variável de ambiente `PORT`.
+
+Vamos configurar o build da aplicação para gerar a pasta `dist` com o código transpilado. Vamos adicionar o seguinte script no arquivo `package.json`:
+
+```json
+{
+  "scripts": {
+    "build": "tsc"
+  }
+}
+```
+
+No tsconfig.json vamos ajustar o diretório de saída do código transpilado. Adicione a seguinte configuração no arquivo `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist"
+  }
+}
+```
+
+Esse diretório deve ser adicionado ao .gitignore para que não seja enviado para o repositório. Adicione a seguinte linha no arquivo `.gitignore`:
+
+```
+dist/
+```
