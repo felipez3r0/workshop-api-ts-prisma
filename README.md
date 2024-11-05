@@ -1117,3 +1117,7 @@ Esse diretório deve ser adicionado ao .gitignore para que não seja enviado par
 ```
 dist/
 ```
+
+No Render ao fazer o deploy precisamos ajustar o Start Command para `node dist/server.js` e o Build Command para `npm install; npm run build`. Também precisamos adicionar uma variável de ambiente `DATABASE_URL` com a URL de conexão com o banco de dados. O JWT Secret pode ser adicionado da mesma forma.
+
+Se precisar de uma versão específica do Node.js, podemos adicionar um arquivo `.node-version` na raiz do projeto com a versão desejada ou uma variável de ambiente `NODE_VERSION` no Render.
